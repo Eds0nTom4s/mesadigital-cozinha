@@ -1,73 +1,29 @@
 import { defineStore } from 'pinia'
+import { subPedidosAPI } from '@/services/api'
+import { useAuthStore } from './auth'
 
-// Estados possíveis do pedido
+// Estados possíveis do SubPedido (conforme backend)
 export const STATUS = {
-  NOVO: 'NOVO',
+  PENDENTE: 'PENDENTE',
   EM_PREPARACAO: 'EM_PREPARACAO',
-  PRONTO: 'PRONTO'
+  PRONTO: 'PRONTO',
+  ENTREGUE: 'ENTREGUE',
+  CANCELADO: 'CANCELADO'
 }
 
 export const usePedidosStore = defineStore('pedidos', {
   state: () => ({
-    // Mock inicial de pedidos
-    pedidos: [
-      {
-        id: 1,
-        mesa: 'Mesa 5',
-        hora: '14:23',
-        status: STATUS.NOVO,
-        itens: [
-          { nome: 'Hambúrguer Clássico', quantidade: 2, observacoes: 'Sem cebola' },
-          { nome: 'Batata Frita Grande', quantidade: 1, observacoes: '' }
-        ]
-      },
-      {
-        id: 2,
-        mesa: 'Mesa 12',
-        hora: '14:18',
-        status: STATUS.EM_PREPARACAO,
-        itens: [
-          { nome: 'Pizza Margherita', quantidade: 1, observacoes: 'Bem passada' },
-          { nome: 'Refrigerante', quantidade: 2, observacoes: '' }
-        ]
-      },
-      {
-        id: 3,
-        mesa: 'Mesa 3',
-        hora: '14:15',
-        status: STATUS.PRONTO,
-        itens: [
-          { nome: 'Salada Caesar', quantidade: 1, observacoes: 'Sem croutons' }
-        ]
-      },
-      {
-        id: 4,
-        mesa: 'Balcão 2',
-        hora: '14:25',
-        status: STATUS.NOVO,
-        itens: [
-          { nome: 'Tábua de Frios', quantidade: 1, observacoes: '' },
-          { nome: 'Vinho Tinto', quantidade: 1, observacoes: 'Garrafa' }
-        ]
-      },
-      {
-        id: 5,
-        mesa: 'Mesa 8',
-        hora: '14:20',
-        status: STATUS.EM_PREPARACAO,
-        itens: [
-          { nome: 'Risotto de Camarão', quantidade: 1, observacoes: 'Picante' },
-          { nome: 'Água com Gás', quantidade: 2, observacoes: '' }
-        ]
-      }
-    ]
+    // Lista de SubPedidos (estrutura alinhada com backend)
+    pedidos: [],
+    loading: false,
+    error: null
   }),
 
   getters: {
-    // Pedidos ordenados por status e hora (novos primeiro)
+    // Pedidos ordenados por status e hora
     pedidosOrdenados: (state) => {
       const ordem = {
-        [STATUS.NOVO]: 1,
+        [STATUS.PENDENTE]: 1,
         [STATUS.EM_PREPARACAO]: 2,
         [STATUS.PRONTO]: 3
       }
@@ -75,35 +31,107 @@ export const usePedidosStore = defineStore('pedidos', {
         if (ordem[a.status] !== ordem[b.status]) {
           return ordem[a.status] - ordem[b.status]
         }
-        return a.hora.localeCompare(b.hora)
+        return new Date(a.timestampCriacao) - new Date(b.timestampCriacao)
       })
     },
 
     // Contadores por status
-    totalNovos: (state) => state.pedidos.filter(p => p.status === STATUS.NOVO).length,
+    totalPendentes: (state) => state.pedidos.filter(p => p.status === STATUS.PENDENTE).length,
     totalEmPreparacao: (state) => state.pedidos.filter(p => p.status === STATUS.EM_PREPARACAO).length,
-    totalProntos: (state) => state.pedidos.filter(p => p.status === STATUS.PRONTO).length
+    totalProntos: (state) => state.pedidos.filter(p => p.status === STATUS.PRONTO).length,
+
+    // Pedidos atrasados
+    pedidosAtrasados: (state) => state.pedidos.filter(p => p.atraso === true)
   },
 
   actions: {
-    // Iniciar preparação de um pedido
-    iniciarPreparacao(pedidoId) {
-      const pedido = this.pedidos.find(p => p.id === pedidoId)
-      if (pedido && pedido.status === STATUS.NOVO) {
-        pedido.status = STATUS.EM_PREPARACAO
+    // Carregar pedidos ativos da cozinha
+    async carregarPedidosAtivos() {
+      const authStore = useAuthStore()
+      const cozinhaId = authStore.cozinhaId
+
+      if (!cozinhaId) {
+        this.error = 'ID da cozinha não disponível'
+        return
+      }
+
+      try {
+        this.loading = true
+        this.error = null
+        const pedidos = await subPedidosAPI.listarAtivos(cozinhaId)
+        this.pedidos = pedidos
+      } catch (error) {
+        this.error = error.response?.data?.error || 'Erro ao carregar pedidos'
+        console.error('Erro ao carregar pedidos:', error)
+      } finally {
+        this.loading = false
       }
     },
 
-    // Marcar pedido como pronto
-    marcarPronto(pedidoId) {
-      const pedido = this.pedidos.find(p => p.id === pedidoId)
-      if (pedido && pedido.status === STATUS.EM_PREPARACAO) {
-        pedido.status = STATUS.PRONTO
+    // Assumir pedido (PENDENTE → EM_PREPARACAO)
+    async assumirPedido(pedidoId) {
+      try {
+        this.loading = true
+        const pedidoAtualizado = await subPedidosAPI.assumir(pedidoId)
+        
+        // Atualizar na lista local
+        const index = this.pedidos.findIndex(p => p.id === pedidoId)
+        if (index !== -1) {
+          this.pedidos[index] = pedidoAtualizado
+        }
+        
+        return pedidoAtualizado
+      } catch (error) {
+        this.error = error.response?.data?.error || 'Erro ao assumir pedido'
+        console.error('Erro ao assumir pedido:', error)
+        throw error
+      } finally {
+        this.loading = false
       }
-    }
+    },
 
-    // Preparado para integração futura com WebSocket/API
-    // conectarWebSocket() {},
-    // sincronizarPedidos() {}
+    // Marcar pedido como pronto (EM_PREPARACAO → PRONTO)
+    async marcarPronto(pedidoId) {
+      try {
+        this.loading = true
+        const pedidoAtualizado = await subPedidosAPI.marcarPronto(pedidoId)
+        
+        // Atualizar na lista local
+        const index = this.pedidos.findIndex(p => p.id === pedidoId)
+        if (index !== -1) {
+          this.pedidos[index] = pedidoAtualizado
+        }
+        
+        return pedidoAtualizado
+      } catch (error) {
+        this.error = error.response?.data?.error || 'Erro ao marcar como pronto'
+        console.error('Erro ao marcar como pronto:', error)
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // Adicionar novo pedido (via WebSocket)
+    adicionarPedido(pedido) {
+      // Evitar duplicados
+      const existe = this.pedidos.find(p => p.id === pedido.id)
+      if (!existe) {
+        this.pedidos.push(pedido)
+      }
+    },
+
+    // Atualizar pedido existente (via WebSocket)
+    atualizarPedido(pedidoAtualizado) {
+      const index = this.pedidos.findIndex(p => p.id === pedidoAtualizado.id)
+      if (index !== -1) {
+        this.pedidos[index] = pedidoAtualizado
+      }
+    },
+
+    // Remover pedido da lista
+    removerPedido(pedidoId) {
+      this.pedidos = this.pedidos.filter(p => p.id !== pedidoId)
+    }
   }
 })
