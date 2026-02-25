@@ -76,6 +76,7 @@
 import { ref } from 'vue'
 import StatusBadge from './StatusBadge.vue'
 import { STATUS, usePedidosStore } from '@/store/pedidos'
+import { useNotificationStore } from '@/store/notification'
 
 const props = defineProps({
   pedido: {
@@ -85,6 +86,7 @@ const props = defineProps({
 })
 
 const store = usePedidosStore()
+const notification = useNotificationStore()
 const loading = ref(false)
 
 // Formatar hora do timestamp
@@ -99,8 +101,11 @@ const assumirPedido = async () => {
   try {
     loading.value = true
     await store.assumirPedido(props.pedido.id)
+    notification.success(`Pedido ${props.pedido.mesaCodigo} assumido com sucesso`, 'Pedido Assumido')
   } catch (error) {
-    alert('Erro ao assumir pedido: ' + error.message)
+    console.error('Erro ao assumir pedido:', error)
+    const errorMsg = error.response?.data?.error || 'Erro ao assumir pedido'
+    notification.error(errorMsg, 'Erro')
   } finally {
     loading.value = false
   }
@@ -111,8 +116,11 @@ const marcarPronto = async () => {
   try {
     loading.value = true
     await store.marcarPronto(props.pedido.id)
+    notification.success(`Pedido ${props.pedido.mesaCodigo} está pronto!`, 'Pedido Pronto')
   } catch (error) {
-    alert('Erro ao marcar como pronto: ' + error.message)
+    console.error('Erro ao marcar como pronto:', error)
+    const errorMsg = error.response?.data?.error || 'Erro ao marcar como pronto'
+    notification.error(errorMsg, 'Erro')
   } finally {
     loading.value = false
   }

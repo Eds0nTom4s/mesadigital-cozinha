@@ -67,19 +67,20 @@ api.interceptors.response.use(
 export const authAPI = {
   // Login do cozinheiro
   async login(username, password) {
-    const { data } = await api.post('/auth/jwt/login', {
+    const response = await api.post('/auth/jwt/login', {
       username,
       password
     })
-    return data
+    // Retornar a resposta completa para que auth.store possa acessar response.data
+    return response
   },
 
   // Renovar token
   async refresh(refreshToken) {
-    const { data } = await api.post('/auth/jwt/refresh', {
+    const response = await api.post('/auth/jwt/refresh', {
       refreshToken
     })
-    return data
+    return response
   }
 }
 

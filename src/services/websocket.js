@@ -55,6 +55,23 @@ class WebSocketService {
           }
         )
 
+        // ✅ NOVO: Inscrever-se em pedidos liberados automaticamente
+        this.stompClient.subscribe(
+          `/topic/cozinha/${cozinhaId}`,
+          (message) => {
+            const evento = JSON.parse(message.body)
+            console.log('📨 Evento recebido:', evento)
+            
+            // Tratar evento de pedido liberado automaticamente
+            if (evento.tipo === 'PEDIDO_LIBERADO_AUTOMATICAMENTE') {
+              console.log('✅ Pedido liberado automaticamente:', evento)
+              if (callbacks.onPedidoLiberado) {
+                callbacks.onPedidoLiberado(evento)
+              }
+            }
+          }
+        )
+
         // Inscrever-se em atualizações de pedidos
         this.stompClient.subscribe(
           `/topic/cozinha/${cozinhaId}/atualizacoes`,

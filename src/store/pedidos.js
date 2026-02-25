@@ -4,7 +4,8 @@ import { useAuthStore } from './auth'
 
 // Estados possíveis do SubPedido (conforme backend)
 export const STATUS = {
-  PENDENTE: 'PENDENTE',
+  CRIADO: 'CRIADO',           // ✅ NOVO: Pedido criado, aguardando confirmação automática
+  PENDENTE: 'PENDENTE',       // Confirmado, aguardando cozinha assumir
   EM_PREPARACAO: 'EM_PREPARACAO',
   PRONTO: 'PRONTO',
   ENTREGUE: 'ENTREGUE',
@@ -23,6 +24,7 @@ export const usePedidosStore = defineStore('pedidos', {
     // Pedidos ordenados por status e hora
     pedidosOrdenados: (state) => {
       const ordem = {
+        [STATUS.CRIADO]: 0,           // CRIADO não deve aparecer na cozinha (bloqueado)
         [STATUS.PENDENTE]: 1,
         [STATUS.EM_PREPARACAO]: 2,
         [STATUS.PRONTO]: 3
