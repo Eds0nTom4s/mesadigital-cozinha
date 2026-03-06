@@ -1,5 +1,4 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
 import { subPedidosAPI } from '@/services/api'
 import { useAuthStore } from './auth'
 
@@ -13,207 +12,158 @@ export const STATUS = {
   CANCELADO: 'CANCELADO'
 }
 
-export const usePedidosStore = defineStore('pedidos', () => {
-  // State
-  const pedidos = ref([])
-  const loading = ref(false)
-  const error = ref(null)
+export const usePedidosStore = defineStore('pedidos', {
+  state: () => ({
+    // Lista de SubPedidos (estrutura alinhada com backend)
+    pedidos: [],
+    loading: false,
+    error: null
+  }),
 
-  // Getters (computed)
-  const pedidosOrdenados = computed(() => {
-    const ordem = {
-      [STATUS.CRIADO]: 0,           // CRIADO não deve aparecer na cozinha (bloqueado)
-      [STATUS.PENDENTE]: 1,
-      [STATUS.EM_PREPARACAO]: 2,
-      [STATUS.PRONTO]: 3
-    }
-    return [...pedidos.value].sort((a, b) => {
-      if (ordem[a.status] !== ordem[b.status]) {
-        return ordem[a.status] - ordem[b.status]
+  getters: {
+    // Pedidos ordenados por status e hora
+    pedidosOrdenados: (state) => {
+      const ordem = {
+        [STATUS.CRIADO]: 0,           // CRIADO não deve aparecer na cozinha (bloqueado)
+        [STATUS.PENDENTE]: 1,
+        [STATUS.EM_PREPARACAO]: 2,
+        [STATUS.PRONTO]: 3
       }
-      // A5: Campo correto é recebidoEm (não timestampCriacao)
-      return new Date(a.recebidoEm) - new Date(b.recebidoEm)
-    })
-  })
-
-  const totalPendentes = computed(() => 
-    pedidos.value.filter(p => p.status === STATUS.PENDENTE).length
-  )
-  
-  const totalEmPreparacao = computed(() => 
-    pedidos.value.filter(p => p.status === STATUS.EM_PREPARACAO).length
-  )
-  
-  const totalProntos = computed(() => 
-    pedidos.value.filter(p => p.status === STATUS.PRONTO).length
-  )
-  
-  const pedidosAtrasados = computed(() => 
-    pedidos.value.filter(p => p.atraso === true)
-  )
-
-  // Actions
-  async function carregarPedidosAtivos() {
-    const authStore = useAuthStore()
-    const cozinhaId = authStore.cozinhaId
-
-    if (!cozinhaId) {
-      error.value = 'ID da cozinha não disponível'
-      console.error('❌ CozinhaId não disponível')
-      return
-    }
-
-    try {
-      loading.value = true
-      error.value = null
-      
-      if (import.meta.env.DEV) {
-        console.log('📥 Carregando pedidos ativos da cozinha:', cozinhaId)
-      }
-      
-      const pedidosData = await subPedidosAPI.listarAtivos(cozinhaId)
-      
-      if (import.meta.env.DEV) {
-        console.log('✅ Pedidos carregados:', pedidosData)
-        console.log('📊 Total de pedidos:', pedidosData?.length || 0)
-        console.log('📋 Status dos pedidos:', pedidosData?.map(p => ({ id: p.id, status: p.status })))
-      }
-      
-      pedidos.value = pedidosData || []
-    } catch (err) {
-      error.value = err.response?.data?.error || 'Erro ao carregar pedidos'
-      console.error('❌ Erro ao carregar pedidos:', err)
-      console.error('📋 Detalhes do erro:', {
-        status: err.response?.status,
-        data: err.response?.data,
-        message: err.message
+      return [...state.pedidos].sort((a, b) => {
+        if (ordem[a.status] !== ordem[b.status]) {
+          return ordem[a.status] - ordem[b.status]
+        }
+        // A5: Campo correto é recebidoEm (não timestampCriacao)
+        return new Date(a.recebidoEm) - new Date(b.recebidoEm)
       })
-    } finally {
-      loading.value = false
-    }
-  }
+    },
 
-  async function assumirPedido(pedidoId) {
-    try {
-      loading.value = true
-      const pedidoAtualizado = await subPedidosAPI.assumir(pedidoId)
-      
-      // Atualizar na lista local usando map para reatividade
-      pedidos.value = pedidos.value.map(p => 
-        p.id === pedidoId ? pedidoAtualizado : p
-      )
-      
-      return pedidoAtualizado
-    } catch (err) {
-      error.value = err.response?.data?.error || 'Erro ao assumir pedido'
-      console.error('Erro ao assumir pedido:', err)
-      throw err
-    } finally {
-      loading.value = false
-    }
-  }
+    // Contadores por status
+    totalPendentes: (state) => state.pedidos.filter(p => p.status === STATUS.PENDENTE).length,
+    totalEmPreparacao: (state) => state.pedidos.filter(p => p.status === STATUS.EM_PREPARACAO).length,
+    totalProntos: (state) => state.pedidos.filter(p => p.status === STATUS.PRONTO).length,
 
-  async function marcarPronto(pedidoId) {
-    try {
-      loading.value = true
-      const pedidoAtualizado = await subPedidosAPI.marcarPronto(pedidoId)
-      
-      // Atualizar na lista local usando map para reatividade
-      pedidos.value = pedidos.value.map(p => 
-        p.id === pedidoId ? pedidoAtualizado : p
-      )
-      
-      return pedidoAtualizado
-    } catch (err) {
-      error.value = err.response?.data?.error || 'Erro ao marcar como pronto'
-      console.error('Erro ao marcar como pronto:', err)
-      throw err
-    } finally {
-      loading.value = false
-    }
-  }
+    // Pedidos atrasados
+    pedidosAtrasados: (state) => state.pedidos.filter(p => p.atraso === true)
+  },
 
-  function adicionarPedido(pedido) {
-    if (import.meta.env.DEV) {
-      console.log('➕ Adicionando pedido via WebSocket:', pedido)
-      console.log('📊 Pedidos antes:', pedidos.value.length)
-    }
-    
-    // Evitar duplicados
-    const existe = pedidos.value.find(p => p.id === pedido.id)
-    if (!existe) {
-      // Usar spread operator para garantir reatividade
-      pedidos.value = [...pedidos.value, pedido]
-      
-      if (import.meta.env.DEV) {
-        console.log('✅ Pedido adicionado com sucesso')
-        console.log('📊 Pedidos depois:', pedidos.value.length)
-        console.log('📋 Lista atualizada:', pedidos.value.map(p => ({ id: p.id, status: p.status })))
+  actions: {
+    // Carregar pedidos ativos da cozinha
+    async carregarPedidosAtivos() {
+      const authStore = useAuthStore()
+      const cozinhaId = authStore.cozinhaId
+
+      if (!cozinhaId) {
+        this.error = 'ID da cozinha não disponível'
+        return
       }
-    } else {
-      if (import.meta.env.DEV) {
-        console.log('⚠️ Pedido já existe na lista, ignorando duplicado')
-      }
-    }
-  }
 
-  function atualizarPedido(pedidoAtualizado) {
-    if (import.meta.env.DEV) {
-      console.log('🔄 Atualizando pedido via WebSocket:', pedidoAtualizado)
-      console.log('📊 Pedidos antes:', pedidos.value.length)
-    }
-    
-    const index = pedidos.value.findIndex(p => p.id === pedidoAtualizado.id)
-    if (index !== -1) {
-      // Usar map para garantir reatividade
-      pedidos.value = pedidos.value.map((p, i) => 
-        i === index ? pedidoAtualizado : p
-      )
+      try {
+        this.loading = true
+        this.error = null
+        const pedidos = await subPedidosAPI.listarAtivos(cozinhaId)
+        this.pedidos = pedidos
+      } catch (error) {
+        this.error = error.response?.data?.error || 'Erro ao carregar pedidos'
+        console.error('Erro ao carregar pedidos:', error)
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // Assumir pedido (PENDENTE → EM_PREPARACAO)
+    async assumirPedido(pedidoId) {
+      try {
+        this.loading = true
+        const pedidoAtualizado = await subPedidosAPI.assumir(pedidoId)
+        
+        // Atualizar na lista local
+        const index = this.pedidos.findIndex(p => p.id === pedidoId)
+        if (index !== -1) {
+          this.pedidos[index] = pedidoAtualizado
+        }
+        
+        return pedidoAtualizado
+      } catch (error) {
+        this.error = error.response?.data?.error || 'Erro ao assumir pedido'
+        console.error('Erro ao assumir pedido:', error)
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // Marcar pedido como pronto (EM_PREPARACAO → PRONTO)
+    async marcarPronto(pedidoId) {
+      try {
+        this.loading = true
+        const pedidoAtualizado = await subPedidosAPI.marcarPronto(pedidoId)
+        
+        // Atualizar na lista local
+        const index = this.pedidos.findIndex(p => p.id === pedidoId)
+        if (index !== -1) {
+          this.pedidos[index] = pedidoAtualizado
+        }
+        
+        return pedidoAtualizado
+      } catch (error) {
+        this.error = error.response?.data?.error || 'Erro ao marcar como pronto'
+        console.error('Erro ao marcar como pronto:', error)
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // Adicionar novo pedido (via WebSocket)
+    adicionarPedido(pedido) {
+      if (import.meta.env.DEV) {
+        console.log('➕ [STORE] adicionarPedido chamado com:', pedido)
+        console.log('📊 [STORE] Pedidos antes:', this.pedidos.length)
+      }
       
-      if (import.meta.env.DEV) {
-        console.log('✅ Pedido atualizado com sucesso')
-        console.log('📋 Pedido atualizado:', pedidos.value[index])
+      // Evitar duplicados
+      const existe = this.pedidos.find(p => p.id === pedido.id)
+      if (!existe) {
+        // Usar unshift para adicionar no início (mais visível)
+        this.pedidos.unshift(pedido)
+        
+        if (import.meta.env.DEV) {
+          console.log('✅ [STORE] Pedido adicionado. Total agora:', this.pedidos.length)
+          console.log('📋 [STORE] Lista completa:', this.pedidos.map(p => ({ id: p.id, status: p.status })))
+        }
+      } else {
+        if (import.meta.env.DEV) {
+          console.log('⚠️ [STORE] Pedido duplicado, ignorando')
+        }
       }
-    } else {
+    },
+
+    // Atualizar pedido existente (via WebSocket)
+    atualizarPedido(pedidoAtualizado) {
       if (import.meta.env.DEV) {
-        console.log('⚠️ Pedido não encontrado na lista, adicionando...')
+        console.log('🔄 [STORE] atualizarPedido chamado com:', pedidoAtualizado)
       }
-      // Se não encontrou, adicionar (pode ser um pedido novo que chegou por outra rota)
-      adicionarPedido(pedidoAtualizado)
-    }
-  }
+      
+      const index = this.pedidos.findIndex(p => p.id === pedidoAtualizado.id)
+      if (index !== -1) {
+        // Usar splice para garantir reatividade
+        this.pedidos.splice(index, 1, pedidoAtualizado)
+        
+        if (import.meta.env.DEV) {
+          console.log('✅ [STORE] Pedido atualizado no índice:', index)
+        }
+      } else {
+        if (import.meta.env.DEV) {
+          console.log('⚠️ [STORE] Pedido não encontrado, adicionando...', pedidoAtualizado.id)
+        }
+        this.adicionarPedido(pedidoAtualizado)
+      }
+    },
 
-  function removerPedido(pedidoId) {
-    if (import.meta.env.DEV) {
-      console.log('🗑️ Removendo pedido:', pedidoId)
-      console.log('📊 Pedidos antes:', pedidos.value.length)
+    // Remover pedido da lista
+    removerPedido(pedidoId) {
+      this.pedidos = this.pedidos.filter(p => p.id !== pedidoId)
     }
-    
-    pedidos.value =pedidos.value.filter(p => p.id !== pedidoId)
-    
-    if (import.meta.env.DEV) {
-      console.log('📊 Pedidos depois:', pedidos.value.length)
-    }
-  }
-
-  // Return para expor state, getters e actions
-  return {
-    // State
-    pedidos,
-    loading,
-    error,
-    // Getters
-    pedidosOrdenados,
-    totalPendentes,
-    totalEmPreparacao,
-    totalProntos,
-    pedidosAtrasados,
-    // Actions
-    carregarPedidosAtivos,
-    assumirPedido,
-    marcarPronto,
-    adicionarPedido,
-    atualizarPedido,
-    removerPedido
   }
 })

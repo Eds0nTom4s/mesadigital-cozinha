@@ -31,7 +31,6 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, watch } from 'vue'
-import { storeToRefs } from 'pinia'
 import KitchenLayout from '@/components/KitchenLayout.vue'
 import PedidoCard from '@/components/PedidoCard.vue'
 import { usePedidosStore, STATUS } from '@/store/pedidos'
@@ -43,16 +42,13 @@ const store = usePedidosStore()
 const authStore = useAuthStore()
 const notification = useNotificationStore()
 
-// Extrair refs reativos do store usando storeToRefs
-const { pedidos } = storeToRefs(store)
-
-// Watch para debug de reatividade
+// Watch para debug de reatividade (direto no store, não precisa storeToRefs com Options API)
 if (import.meta.env.DEV) {
-  watch(pedidos, (newPedidos, oldPedidos) => {
-    console.log('🔍 WATCH: Array pedidos mudou!')
-    console.log('📊 Antes:', oldPedidos?.length || 0, 'pedidos')
-    console.log('📊 Depois:', newPedidos?.length || 0, 'pedidos')
-    console.log('📋 Novos pedidos:', newPedidos?.map(p => ({ id: p.id, status: p.status })))
+  watch(() => store.pedidos, (newPedidos, oldPedidos) => {
+    console.log('🔍 [WATCH] Array pedidos mudou!')
+    console.log('📊 [WATCH] Antes:', oldPedidos?.length || 0, 'pedidos')
+    console.log('📊 [WATCH] Depois:', newPedidos?.length || 0, 'pedidos')
+    console.log('📋 [WATCH] Novos pedidos:', newPedidos?.map(p => ({ id: p.id, status: p.status })))
   }, { deep: true })
 }
 
@@ -180,36 +176,36 @@ onUnmounted(() => {
 
 // Pedidos agrupados por status
 const pedidosPendentes = computed(() => {
-  const pendentes = pedidos.value
+  const pendentes = store.pedidos
     .filter(p => p.status === STATUS.PENDENTE)
     .sort((a, b) => new Date(a.recebidoEm) - new Date(b.recebidoEm))
   
   if (import.meta.env.DEV) {
-    console.log('🔄 Computed pedidosPendentes recalculado:', pendentes.length, 'pedidos')
+    console.log('🔄 [COMPUTED] pedidosPendentes recalculado:', pendentes.length, 'pedidos')
   }
   
   return pendentes
 })
 
 const pedidosEmPreparacao = computed(() => {
-  const emPreparacao = pedidos.value
+  const emPreparacao = store.pedidos
     .filter(p => p.status === STATUS.EM_PREPARACAO)
     .sort((a, b) => new Date(a.timestampInicio) - new Date(b.timestampInicio))
   
   if (import.meta.env.DEV) {
-    console.log('🔄 Computed pedidosEmPreparacao recalculado:', emPreparacao.length, 'pedidos')
+    console.log('🔄 [COMPUTED] pedidosEmPreparacao recalculado:', emPreparacao.length, 'pedidos')
   }
   
   return emPreparacao
 })
 
 const pedidosProntos = computed(() => {
-  const prontos = pedidos.value
+  const prontos = store.pedidos
     .filter(p => p.status === STATUS.PRONTO)
     .sort((a, b) => new Date(a.timestampConclusao) - new Date(b.timestampConclusao))
   
   if (import.meta.env.DEV) {
-    console.log('🔄 Computed pedidosProntos recalculado:', prontos.length, 'pedidos')
+    console.log('🔄 [COMPUTED] pedidosProntos recalculado:', prontos.length, 'pedidos')
   }
   
   return prontos
