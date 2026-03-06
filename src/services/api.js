@@ -65,11 +65,11 @@ api.interceptors.response.use(
 // ====================================
 
 export const authAPI = {
-  // Login do cozinheiro
-  async login(username, password) {
-    const response = await api.post('/auth/jwt/login', {
+  // Login do usuário (admin, gerente, atendente, cozinha)
+  async login(username, senha) {
+    const response = await api.post('/auth/admin/login', {
       username,
-      password
+      senha
     })
     // Retornar a resposta completa para que auth.store possa acessar response.data
     return response

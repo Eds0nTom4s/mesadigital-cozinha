@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import LoginView from '@/views/LoginView.vue'
 import KitchenView from '@/views/KitchenView.vue'
+import SelecionarCozinhaView from '@/views/SelecionarCozinhaView.vue'
 import { useAuthStore } from '@/store/auth'
 import { hasAnyRole } from '@/utils/jwt'
 
@@ -16,6 +17,15 @@ const router = createRouter({
       name: 'login',
       component: LoginView,
       meta: { requiresAuth: false }
+    },
+    {
+      path: '/selecionar-cozinha',
+      name: 'selecionar-cozinha',
+      component: SelecionarCozinhaView,
+      meta: { 
+        requiresAuth: true,
+        requiredRoles: ['ROLE_COZINHA']
+      }
     },
     {
       path: '/kitchen',
@@ -61,6 +71,13 @@ router.beforeEach((to, from, next) => {
         console.warn('Roles necessárias:', to.meta.requiredRoles)
         console.warn('Roles do usuário:', authStore.userRoles)
         next('/acesso-negado')
+        return
+      }
+      
+      // B4: Usuários ROLE_COZINHA precisam selecionar cozinha antes de acessar /kitchen
+      if (to.path === '/kitchen' && hasAnyRole(['ROLE_COZINHA']) && !authStore.cozinhaId) {
+        console.warn('Usuário ROLE_COZINHA precisa selecionar uma cozinha')
+        next('/selecionar-cozinha')
         return
       }
     }

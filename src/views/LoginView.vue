@@ -121,6 +121,7 @@ const handleLogin = async () => {
     loading.value = true
     error.value = null
 
+    // A2: Backend espera 'senha' (não 'password')
     await authStore.login(form.value.username, form.value.password)
 
     // DEBUG: Mostrar informações do token JWT em desenvolvimento
@@ -153,8 +154,13 @@ const handleLogin = async () => {
     // Sucesso
     notification.success(`Bem-vindo, ${authStore.userName}!`, 'Login realizado')
     
-    // Redirecionar para a interface da cozinha
-    router.push('/kitchen')
+    // B4: Usuários ROLE_COZINHA devem selecionar a cozinha
+    if (authStore.isCozinha && !authStore.cozinhaId) {
+      router.push('/selecionar-cozinha')
+    } else {
+      // Redirecionar para a interface da cozinha
+      router.push('/kitchen')
+    }
   } catch (err) {
     // Log detalhado apenas em desenvolvimento
     if (import.meta.env.DEV) {

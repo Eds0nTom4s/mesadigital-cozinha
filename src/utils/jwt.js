@@ -60,7 +60,14 @@ export function getRolesFromToken() {
     return []
   }
   
-  return payload.roles
+  // A3: O backend envia roles como STRING separada por vírgula (ex: "ROLE_ATENDENTE,ROLE_COZINHA")
+  // Converter para array
+  if (typeof payload.roles === 'string') {
+    return payload.roles.split(',').map(r => r.trim()).filter(r => r.length > 0)
+  }
+  
+  // Fallback se já for array (compatibilidade)
+  return Array.isArray(payload.roles) ? payload.roles : []
 }
 
 /**

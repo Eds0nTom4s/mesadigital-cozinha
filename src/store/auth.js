@@ -14,7 +14,8 @@ export const useAuthStore = defineStore('auth', {
     user: null,
     token: localStorage.getItem('token') || null,
     refreshToken: localStorage.getItem('refreshToken') || null,
-    isAuthenticated: false
+    isAuthenticated: false,
+    selectedCozinhaId: localStorage.getItem('selectedCozinhaId') || null // B4: seleção manual de cozinha
   }),
 
   getters: {
@@ -39,7 +40,8 @@ export const useAuthStore = defineStore('auth', {
     },
 
     // Obter o ID da cozinha do usuário
-    cozinhaId: (state) => state.user?.unidadeAtendimentoId || null,
+    // B4: Como o login não retorna cozinhaId, usar a seleção manual
+    cozinhaId: (state) => state.selectedCozinhaId,
 
     // Verificar se tem role COZINHA (extraindo do token JWT)
     isCozinha: () => {
@@ -71,20 +73,22 @@ export const useAuthStore = defineStore('auth', {
           console.log('📦 Conteúdo de response.data.data:', JSON.stringify(response.data?.data, null, 2))
         }
 
-        // O backend retorna: { success, message, data: { accessToken, refreshToken, username, roles, ... } }
-        // Precisamos acessar response.data.data
+        // O backend retorna: { success, message, data: { id, nome, telefone, email, tipoUsuario, token, expiresIn } }
+        // Estrutura correta confirmada pelo backend
         const responseData = response.data.data || response.data
         
-        // O backend retorna accessToken (não token) e dados do usuário soltos
-        this.token = responseData.accessToken || responseData.token
+        // A1: O backend retorna 'token' (não accessToken)
+        this.token = responseData.token
         this.refreshToken = responseData.refreshToken
         
         // Criar objeto user a partir dos dados do backend
         this.user = {
-          username: responseData.username,
-          roles: responseData.roles,
-          nome: responseData.nome || responseData.username, // fallback para username se nome não existir
-          unidadeAtendimentoId: responseData.unidadeAtendimentoId || responseData.cozinhaId
+          id: responseData.id,
+          username: responseData.username || responseData.email,
+          nome: responseData.nome || responseData.nomeCompleto,
+          email: responseData.email,
+          telefone: responseData.telefone,
+          tipoUsuario: responseData.tipoUsuario
         }
         
         this.isAuthenticated = true
@@ -171,10 +175,18 @@ export const useAuthStore = defineStore('auth', {
       this.token = null
       this.refreshToken = null
       this.isAuthenticated = false
+      this.selectedCozinhaId = null
 
       localStorage.removeItem('token')
       localStorage.removeItem('refreshToken')
       localStorage.removeItem('user')
+      localStorage.removeItem('selectedCozinhaId')
+    },
+
+    // B4: Definir a cozinha selecionada manualmente
+    setCozinhaId(cozinhaId) {
+      this.selectedCozinhaId = cozinhaId
+      localStorage.setItem('selectedCozinhaId', cozinhaId)
     },
 
     // Restaurar sessão do localStorage

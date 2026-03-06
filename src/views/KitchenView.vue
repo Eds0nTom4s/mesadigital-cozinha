@@ -85,6 +85,11 @@ onMounted(async () => {
           onAtualizacao: (pedido) => {
             store.atualizarPedido(pedido)
           },
+          // Handler para cancelamento de pedidos
+          onCancelamento: (pedido) => {
+            store.removerPedido(pedido.subPedidoId)
+            notification.warning(`Pedido ${pedido.subPedidoId} foi cancelado`, 'Pedido Cancelado')
+          },
           onError: (error) => {
             console.error('Erro no WebSocket:', error)
             notification.warning('Conexão em tempo real perdida. Reconectando...', 'WebSocket')
@@ -107,7 +112,7 @@ onUnmounted(() => {
 const pedidosPendentes = computed(() => 
   store.pedidos
     .filter(p => p.status === STATUS.PENDENTE)
-    .sort((a, b) => new Date(a.timestampCriacao) - new Date(b.timestampCriacao))
+    .sort((a, b) => new Date(a.recebidoEm) - new Date(b.recebidoEm))
 )
 
 const pedidosEmPreparacao = computed(() => 

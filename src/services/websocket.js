@@ -12,7 +12,8 @@ class WebSocketService {
 
   // Conectar ao WebSocket
   connect(cozinhaId, callbacks = {}) {
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws'
+    // C1: URL correto do WebSocket é /api/ws (não apenas /ws)
+    const wsUrl = import.meta.env.VITE_WS_URL || 'http://localhost:8080/api/ws'
     const token = localStorage.getItem('token')
 
     if (!token) {
@@ -55,29 +56,56 @@ class WebSocketService {
           }
         )
 
-        // ✅ NOVO: Inscrever-se em pedidos liberados automaticamente
+        // C2: Tópico principal da cozinha - recebe DOIS formatos de mensagem
         this.stompClient.subscribe(
           `/topic/cozinha/${cozinhaId}`,
           (message) => {
-            const evento = JSON.parse(message.body)
-            console.log('📨 Evento recebido:', evento)
+            const mensagem = JSON.parse(message.body)
+            console.log('📨 Mensagem recebida no tópico da cozinha:', mensagem)
             
-            // Tratar evento de pedido liberado automaticamente
-            if (evento.tipo === 'PEDIDO_LIBERADO_AUTOMATICAMENTE') {
-              console.log('✅ Pedido liberado automaticamente:', evento)
+            // FORMATO 2: Evento especial (Map simples)
+            if (mensagem.tipo === 'PEDIDO_LIBERADO_AUTOMATICAMENTE') {
+              console.log('✅ Pedido liberado automaticamente:', mensagem)
               if (callbacks.onPedidoLiberado) {
-                callbacks.onPedidoLiberado(evento)
+                callbacks.onPedidoLiberado(mensagem)
+              }
+              return
+            }
+            
+            // FORMATO 1: NotificacaoSubPedidoDTO (normal)
+            if (mensagem.tipoAcao) {
+              console.log(`🔔 Notificação: ${mensagem.tipoAcao}`, mensagem)
+              
+              switch (mensagem.tipoAcao) {
+                case 'CRIACAO':
+                  if (callbacks.onNovoPedido) {
+                    callbacks.onNovoPedido(mensagem)
+                  }
+                  break
+                case 'MUDANCA_STATUS':
+                case 'OBSERVACAO_ADICIONADA':
+                  if (callbacks.onAtualizacao) {
+                    callbacks.onAtualizacao(mensagem)
+                  }
+                  break
+                case 'CANCELAMENTO':
+                  if (callbacks.onCancelamento) {
+                    callbacks.onCancelamento(mensagem)
+                  }
+                  break
+                default:
+                  console.warn('tipoAcao desconhecido:', mensagem.tipoAcao)
               }
             }
           }
         )
 
-        // Inscrever-se em atualizações de pedidos
+        // Inscrever-se em atualizações de pedidos (legacy, pode ser removido se não usado)
         this.stompClient.subscribe(
           `/topic/cozinha/${cozinhaId}/atualizacoes`,
           (message) => {
             const subPedido = JSON.parse(message.body)
-            console.log('🔄 Pedido atualizado:', subPedido)
+            console.log('🔄 Pedido atualizado (tópico /atualizacoes):', subPedido)
             
             if (callbacks.onAtualizacao) {
               callbacks.onAtualizacao(subPedido)

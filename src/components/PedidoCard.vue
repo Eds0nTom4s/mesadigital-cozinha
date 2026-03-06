@@ -7,7 +7,7 @@
           {{ pedido.mesaCodigo }}
         </h3>
         <p class="text-xl text-text-secondary">
-          {{ formatarHora(pedido.timestampCriacao) }}
+          {{ formatarHora(pedido.recebidoEm) }}
         </p>
         <p v-if="pedido.minutosDesdeInicio" class="text-lg font-semibold mt-1" :class="pedido.atraso ? 'text-status-cancelado' : 'text-text-secondary'">
           ⏱️ {{ pedido.minutosDesdeInicio }} min {{ pedido.atraso ? '⚠️ ATRASADO' : '' }}

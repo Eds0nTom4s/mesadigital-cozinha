@@ -33,7 +33,8 @@ export const usePedidosStore = defineStore('pedidos', {
         if (ordem[a.status] !== ordem[b.status]) {
           return ordem[a.status] - ordem[b.status]
         }
-        return new Date(a.timestampCriacao) - new Date(b.timestampCriacao)
+        // A5: Campo correto é recebidoEm (não timestampCriacao)
+        return new Date(a.recebidoEm) - new Date(b.recebidoEm)
       })
     },
 
