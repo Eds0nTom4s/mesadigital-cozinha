@@ -61,9 +61,9 @@ export const useAuthStore = defineStore('auth', {
 
   actions: {
     // Login do cozinheiro
-    async login(username, password) {
+    async login(username, senha) {
       try {
-        const response = await authAPI.login(username, password)
+        const response = await authAPI.login(username, senha)
 
         // DEBUG: Verificar estrutura da resposta
         if (import.meta.env.DEV) {

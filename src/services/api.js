@@ -67,12 +67,33 @@ api.interceptors.response.use(
 export const authAPI = {
   // Login do usuário (admin, gerente, atendente, cozinha)
   async login(username, senha) {
-    const response = await api.post('/auth/admin/login', {
-      username,
-      senha
-    })
-    // Retornar a resposta completa para que auth.store possa acessar response.data
-    return response
+    if (import.meta.env.DEV) {
+      console.log('🔑 Enviando login:', { username, senha: '***' })
+    }
+    
+    try {
+      const response = await api.post('/auth/admin/login', {
+        username,
+        senha
+      })
+      
+      if (import.meta.env.DEV) {
+        console.log('✅ Resposta do login:', response.status, response.data)
+      }
+      
+      // Retornar a resposta completa para que auth.store possa acessar response.data
+      return response
+    } catch (error) {
+      // Log detalhado do erro
+      if (import.meta.env.DEV) {
+        console.error('❌ Erro no login:')
+        console.error('Status:', error.response?.status)
+        console.error('Data:', error.response?.data)
+        console.error('ValidationErrors:', error.response?.data?.validationErrors)
+        console.error('Headers:', error.response?.headers)
+      }
+      throw error
+    }
   },
 
   // Renovar token

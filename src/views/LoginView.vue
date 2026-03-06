@@ -13,16 +13,16 @@
 
       <!-- Formulário de Login -->
       <form @submit.prevent="handleLogin" class="space-y-6">
-        <!-- Telefone/Username -->
+        <!-- Username/Telefone -->
         <div>
           <label for="username" class="block text-text-primary font-semibold mb-2">
-            Telefone
+            Usuário/Telefone
           </label>
           <input
             id="username"
             v-model="form.username"
             type="text"
-            placeholder="912345678"
+            placeholder="cozinha ou 912345678"
             required
             class="w-full px-4 py-3 rounded-lg bg-dark-bg text-text-primary border-2 border-text-secondary/20 focus:border-status-novo focus:outline-none text-lg"
           />
@@ -30,13 +30,13 @@
 
         <!-- Senha -->
         <div>
-          <label for="password" class="block text-text-primary font-semibold mb-2">
+          <label for="senha" class="block text-text-primary font-semibold mb-2">
             Senha
           </label>
           <div class="relative">
             <input
-              id="password"
-              v-model="form.password"
+              id="senha"
+              v-model="form.senha"
               :type="mostrarSenha ? 'text' : 'password'"
               placeholder="••••••••"
               required
@@ -99,7 +99,7 @@ const notification = useNotificationStore()
 
 const form = ref({
   username: '',
-  password: ''
+  senha: ''
 })
 
 const loading = ref(false)
@@ -111,8 +111,8 @@ const isDev = import.meta.env.DEV
 
 // Preenchimento rápido para desenvolvimento
 const preencherRapido = () => {
-  form.value.username = '934567890'
-  form.value.password = 'cozinha123'
+  form.value.username = 'cozinha'
+  form.value.senha = 'cozinha123'
   notification.info('Credenciais preenchidas automaticamente', 'Modo Desenvolvimento')
 }
 
@@ -121,8 +121,8 @@ const handleLogin = async () => {
     loading.value = true
     error.value = null
 
-    // A2: Backend espera 'senha' (não 'password')
-    await authStore.login(form.value.username, form.value.password)
+    // A2: Backend espera 'username' e 'senha' (username para User entity, telefone para Atendente entity)
+    await authStore.login(form.value.username, form.value.senha)
 
     // DEBUG: Mostrar informações do token JWT em desenvolvimento
     if (import.meta.env.DEV) {
