@@ -72,12 +72,14 @@ onMounted(async () => {
             console.log('WebSocket conectado com sucesso')
           },
           onNovoPedido: (notificacao) => {
-            console.log('🔔 Nova notificação de pedido recebida:', notificacao)
+            console.log('🔔 [VIEW] Nova notificação de pedido recebida:', notificacao)
             
             // Transformar NotificacaoSubPedidoDTO em SubPedido
             const pedido = {
               id: notificacao.subPedidoId,
               pedidoId: notificacao.pedidoId,
+              pedidoNumero: notificacao.pedidoNumero || `PED-${notificacao.pedidoId}`,
+              subPedidoNumero: notificacao.subPedidoNumero,
               status: notificacao.status,
               itens: notificacao.itens || [],
               observacoes: notificacao.observacoes,
@@ -86,48 +88,51 @@ onMounted(async () => {
               nomeCozinha: notificacao.nomeCozinha
             }
             
-            console.log('📦 Pedido transformado:', pedido)
+            console.log('📦 [VIEW] Pedido transformado:', pedido)
             store.adicionarPedido(pedido)
             
             notification.info(
-              `Novo pedido da ${pedido.nomeCozinha || 'cozinha'}`, 
+              `Novo pedido #${pedido.pedidoNumero}`, 
               'Novo Pedido'
             )
             // TODO: Tocar som de notificação
           },
           // ✅ NOVO: Handler para pedidos liberados automaticamente
           onPedidoLiberado: async (evento) => {
-            console.log('🎉 Pedido liberado automaticamente:', evento)
-            console.log('📊 Estado atual dos pedidos:', store.pedidos.length, 'pedidos')
+            console.log('🎉 [VIEW] Pedido liberado automaticamente:', evento)
+            console.log('📊 [VIEW] Estado atual dos pedidos:', store.pedidos.length, 'pedidos')
             
-            // Recarregar pedidos para pegar o status atualizado
-            try {
-              console.log('🔄 Recarregando pedidos ativos...')
-              await store.carregarPedidosAtivos()
-              
-              console.log('✅ Pedidos recarregados. Total:', store.pedidos.length)
-              console.log('📋 Pedidos após reload:', store.pedidos.map(p => ({ 
-                id: p.id, 
-                status: p.status,
-                pedidoNumero: p.pedidoNumero
-              })))
-              
-              notification.success(
-                `Pedido ${evento.pedidoNumero || evento.pedidoId} liberado e pronto para produção`, 
-                '🎉 Pedido Confirmado'
-              )
-              // TODO: Tocar som de notificação diferente (confirmação)
-            } catch (error) {
-              console.error('❌ Erro ao recarregar pedidos após liberação:', error)
+            // Adicionar o pedido diretamente da notificação (em vez de recarregar)
+            // porque pode haver delay entre a notificação e a disponibilidade na API
+            const novoPedido = {
+              id: evento.subPedidoId,
+              pedidoId: evento.pedidoId,
+              pedidoNumero: evento.pedidoNumero,
+              subPedidoNumero: evento.subPedidoNumero,
+              status: evento.status || 'PENDENTE',
+              itens: [],  // Será carregado quando expandir
+              recebidoEm: evento.timestamp,
+              totalItens: evento.totalItens || 0
             }
+            
+            console.log('➕ [VIEW] Adicionando pedido liberado:', novoPedido)
+            store.adicionarPedido(novoPedido)
+            
+            notification.success(
+              `Pedido ${evento.pedidoNumero} liberado e pronto para produção`, 
+              '🎉 Pedido Confirmado'
+            )
+            // TODO: Tocar som de notificação diferente (confirmação)
           },
           onAtualizacao: (notificacao) => {
-            console.log('🔄 Notificação de atualização recebida:', notificacao)
+            console.log('🔄 [VIEW] Notificação de atualização recebida:', notificacao)
             
             // Transformar NotificacaoSubPedidoDTO em SubPedido
             const pedidoAtualizado = {
               id: notificacao.subPedidoId,
               pedidoId: notificacao.pedidoId,
+              pedidoNumero: notificacao.pedidoNumero || `PED-${notificacao.pedidoId}`,
+              subPedidoNumero: notificacao.subPedidoNumero,
               status: notificacao.status,
               itens: notificacao.itens || [],
               observacoes: notificacao.observacoes,
@@ -136,7 +141,7 @@ onMounted(async () => {
               nomeCozinha: notificacao.nomeCozinha
             }
             
-            console.log('📦 Pedido atualizado transformado:', pedidoAtualizado)
+            console.log('📦 [VIEW] Pedido atualizado transformado:', pedidoAtualizado)
             store.atualizarPedido(pedidoAtualizado)
             
             if (notificacao.tipoAcao === 'MUDANCA_STATUS') {
