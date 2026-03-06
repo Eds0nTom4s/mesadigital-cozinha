@@ -30,7 +30,8 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import KitchenLayout from '@/components/KitchenLayout.vue'
 import PedidoCard from '@/components/PedidoCard.vue'
 import { usePedidosStore, STATUS } from '@/store/pedidos'
@@ -41,6 +42,19 @@ import websocket from '@/services/websocket'
 const store = usePedidosStore()
 const authStore = useAuthStore()
 const notification = useNotificationStore()
+
+// Extrair refs reativos do store usando storeToRefs
+const { pedidos } = storeToRefs(store)
+
+// Watch para debug de reatividade
+if (import.meta.env.DEV) {
+  watch(pedidos, (newPedidos, oldPedidos) => {
+    console.log('🔍 WATCH: Array pedidos mudou!')
+    console.log('📊 Antes:', oldPedidos?.length || 0, 'pedidos')
+    console.log('📊 Depois:', newPedidos?.length || 0, 'pedidos')
+    console.log('📋 Novos pedidos:', newPedidos?.map(p => ({ id: p.id, status: p.status })))
+  }, { deep: true })
+}
 
 // Carregar pedidos ao montar o componente
 onMounted(async () => {
@@ -166,7 +180,7 @@ onUnmounted(() => {
 
 // Pedidos agrupados por status
 const pedidosPendentes = computed(() => {
-  const pendentes = store.pedidos
+  const pendentes = pedidos.value
     .filter(p => p.status === STATUS.PENDENTE)
     .sort((a, b) => new Date(a.recebidoEm) - new Date(b.recebidoEm))
   
@@ -178,7 +192,7 @@ const pedidosPendentes = computed(() => {
 })
 
 const pedidosEmPreparacao = computed(() => {
-  const emPreparacao = store.pedidos
+  const emPreparacao = pedidos.value
     .filter(p => p.status === STATUS.EM_PREPARACAO)
     .sort((a, b) => new Date(a.timestampInicio) - new Date(b.timestampInicio))
   
@@ -190,7 +204,7 @@ const pedidosEmPreparacao = computed(() => {
 })
 
 const pedidosProntos = computed(() => {
-  const prontos = store.pedidos
+  const prontos = pedidos.value
     .filter(p => p.status === STATUS.PRONTO)
     .sort((a, b) => new Date(a.timestampConclusao) - new Date(b.timestampConclusao))
   
