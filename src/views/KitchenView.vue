@@ -61,34 +61,90 @@ onMounted(async () => {
           onConnect: () => {
             console.log('WebSocket conectado com sucesso')
           },
-          onNovoPedido: (pedido) => {
+          onNovoPedido: (notificacao) => {
+            console.log('🔔 Nova notificação de pedido recebida:', notificacao)
+            
+            // Transformar NotificacaoSubPedidoDTO em SubPedido
+            const pedido = {
+              id: notificacao.subPedidoId,
+              pedidoId: notificacao.pedidoId,
+              status: notificacao.status,
+              itens: notificacao.itens || [],
+              observacoes: notificacao.observacoes,
+              recebidoEm: notificacao.timestamp,
+              cozinhaId: notificacao.cozinhaId,
+              nomeCozinha: notificacao.nomeCozinha
+            }
+            
+            console.log('📦 Pedido transformado:', pedido)
             store.adicionarPedido(pedido)
-            notification.info(`Novo pedido: ${pedido.mesaCodigo}`, 'Novo Pedido')
+            
+            notification.info(
+              `Novo pedido da ${pedido.nomeCozinha || 'cozinha'}`, 
+              'Novo Pedido'
+            )
             // TODO: Tocar som de notificação
-            console.log('🔔 Novo pedido adicionado')
           },
           // ✅ NOVO: Handler para pedidos liberados automaticamente
           onPedidoLiberado: async (evento) => {
-            console.log('✅ Pedido liberado automaticamente:', evento)
+            console.log('🎉 Pedido liberado automaticamente:', evento)
+            console.log('📊 Estado atual dos pedidos:', store.pedidos.length, 'pedidos')
+            
             // Recarregar pedidos para pegar o status atualizado
             try {
+              console.log('🔄 Recarregando pedidos ativos...')
               await store.carregarPedidosAtivos()
+              
+              console.log('✅ Pedidos recarregados. Total:', store.pedidos.length)
+              console.log('📋 Pedidos após reload:', store.pedidos.map(p => ({ 
+                id: p.id, 
+                status: p.status,
+                pedidoNumero: p.pedidoNumero
+              })))
+              
               notification.success(
-                `Pedido ${evento.pedidoNumero} liberado e pronto para produção`, 
+                `Pedido ${evento.pedidoNumero || evento.pedidoId} liberado e pronto para produção`, 
                 '🎉 Pedido Confirmado'
               )
               // TODO: Tocar som de notificação diferente (confirmação)
             } catch (error) {
-              console.error('Erro ao recarregar pedidos após liberação:', error)
+              console.error('❌ Erro ao recarregar pedidos após liberação:', error)
             }
           },
-          onAtualizacao: (pedido) => {
-            store.atualizarPedido(pedido)
+          onAtualizacao: (notificacao) => {
+            console.log('🔄 Notificação de atualização recebida:', notificacao)
+            
+            // Transformar NotificacaoSubPedidoDTO em SubPedido
+            const pedidoAtualizado = {
+              id: notificacao.subPedidoId,
+              pedidoId: notificacao.pedidoId,
+              status: notificacao.status,
+              itens: notificacao.itens || [],
+              observacoes: notificacao.observacoes,
+              recebidoEm: notificacao.timestamp,
+              cozinhaId: notificacao.cozinhaId,
+              nomeCozinha: notificacao.nomeCozinha
+            }
+            
+            console.log('📦 Pedido atualizado transformado:', pedidoAtualizado)
+            store.atualizarPedido(pedidoAtualizado)
+            
+            if (notificacao.tipoAcao === 'MUDANCA_STATUS') {
+              notification.info(
+                `Status alterado para ${notificacao.status}`,
+                'Atualização'
+              )
+            }
           },
           // Handler para cancelamento de pedidos
-          onCancelamento: (pedido) => {
-            store.removerPedido(pedido.subPedidoId)
-            notification.warning(`Pedido ${pedido.subPedidoId} foi cancelado`, 'Pedido Cancelado')
+          onCancelamento: (notificacao) => {
+            console.log('❌ Notificação de cancelamento recebida:', notificacao)
+            
+            store.removerPedido(notificacao.subPedidoId)
+            notification.warning(
+              `Pedido #${notificacao.subPedidoId} foi cancelado`, 
+              'Pedido Cancelado'
+            )
           },
           onError: (error) => {
             console.error('Erro no WebSocket:', error)
@@ -109,21 +165,39 @@ onUnmounted(() => {
 })
 
 // Pedidos agrupados por status
-const pedidosPendentes = computed(() => 
-  store.pedidos
+const pedidosPendentes = computed(() => {
+  const pendentes = store.pedidos
     .filter(p => p.status === STATUS.PENDENTE)
     .sort((a, b) => new Date(a.recebidoEm) - new Date(b.recebidoEm))
-)
+  
+  if (import.meta.env.DEV) {
+    console.log('🔄 Computed pedidosPendentes recalculado:', pendentes.length, 'pedidos')
+  }
+  
+  return pendentes
+})
 
-const pedidosEmPreparacao = computed(() => 
-  store.pedidos
+const pedidosEmPreparacao = computed(() => {
+  const emPreparacao = store.pedidos
     .filter(p => p.status === STATUS.EM_PREPARACAO)
     .sort((a, b) => new Date(a.timestampInicio) - new Date(b.timestampInicio))
-)
+  
+  if (import.meta.env.DEV) {
+    console.log('🔄 Computed pedidosEmPreparacao recalculado:', emPreparacao.length, 'pedidos')
+  }
+  
+  return emPreparacao
+})
 
-const pedidosProntos = computed(() => 
-  store.pedidos
+const pedidosProntos = computed(() => {
+  const prontos = store.pedidos
     .filter(p => p.status === STATUS.PRONTO)
     .sort((a, b) => new Date(a.timestampConclusao) - new Date(b.timestampConclusao))
-)
+  
+  if (import.meta.env.DEV) {
+    console.log('🔄 Computed pedidosProntos recalculado:', prontos.length, 'pedidos')
+  }
+  
+  return prontos
+})
 </script>
