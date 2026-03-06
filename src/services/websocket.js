@@ -17,10 +17,19 @@ class WebSocketService {
     const token = localStorage.getItem('token')
 
     if (!token) {
-      console.error('Token não disponível para WebSocket')
+      console.error('❌ Token não disponível para WebSocket')
+      if (callbacks.onError) {
+        callbacks.onError(new Error('Token não disponível'))
+      }
       return
     }
 
+    if (import.meta.env.DEV) {
+      console.log('🔌 Conectando ao WebSocket:', wsUrl)
+      console.log('🔑 Token disponível:', token?.substring(0, 20) + '...')
+    }
+
+    // Criar socket SockJS - o handshake será feito sem autenticação
     const socket = new SockJS(wsUrl)
     this.stompClient = Stomp.over(socket)
 
