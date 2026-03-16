@@ -37,6 +37,7 @@ import { usePedidosStore, STATUS } from '@/store/pedidos'
 import { useAuthStore } from '@/store/auth'
 import { useNotificationStore } from '@/store/notification'
 import websocket from '@/services/websocket'
+import { subPedidosAPI } from '@/services/api'
 
 const store = usePedidosStore()
 const authStore = useAuthStore()
@@ -71,77 +72,115 @@ onMounted(async () => {
           onConnect: () => {
             console.log('WebSocket conectado com sucesso')
           },
-          onNovoPedido: (notificacao) => {
+          onNovoPedido: async (notificacao) => {
             console.log('🔔 [VIEW] Nova notificação de pedido recebida:', notificacao)
             
-            // Transformar NotificacaoSubPedidoDTO em SubPedido
-            const pedido = {
-              id: notificacao.subPedidoId,
+            const subPedidoId = notificacao.subPedidoId || notificacao.id
+            if (!subPedidoId) {
+              console.warn('⚠️ [VIEW] Notificação sem ID, ignorando:', notificacao)
+              return
+            }
+
+            // Helper para normalizar itens (backend pode enviar nomes diferentes no WS vs REST)
+            const normalizarItens = (itens) => (itens || []).map(item => ({
+              ...item,
+              produtoNome: item.produtoNome || item.nomeProduto,
+              observacao: item.observacao || item.observacoes
+            }))
+
+            // Tentar buscar detalhes completos para garantir itens e mesaCodigo
+            let fullPedido = null
+            try {
+              fullPedido = await subPedidosAPI.buscar(subPedidoId)
+              console.log('✅ [VIEW] Detalhes do pedido carregados via API')
+            } catch (e) {
+              console.error('❌ [VIEW] Erro ao buscar detalhes via API:', e)
+            }
+
+            // Transformar NotificacaoSubPedidoDTO em SubPedido (usando fullPedido se disponível)
+            const pedido = fullPedido || {
+              id: subPedidoId,
               pedidoId: notificacao.pedidoId,
               pedidoNumero: notificacao.pedidoNumero || `PED-${notificacao.pedidoId}`,
               subPedidoNumero: notificacao.subPedidoNumero,
-              status: notificacao.status,
-              itens: notificacao.itens || [],
+              status: notificacao.status || 'PENDENTE',
+              itens: normalizarItens(notificacao.itens),
               observacoes: notificacao.observacoes,
-              recebidoEm: notificacao.timestamp,
+              recebidoEm: notificacao.timestamp || new Date().toISOString(),
               cozinhaId: notificacao.cozinhaId,
-              nomeCozinha: notificacao.nomeCozinha
+              nomeCozinha: notificacao.nomeCozinha,
+              mesaCodigo: notificacao.mesaCodigo || `MESA-${notificacao.pedidoId}`
             }
             
-            console.log('📦 [VIEW] Pedido transformado:', pedido)
-            store.adicionarPedido(pedido)
+            console.log('📦 [VIEW] Pedido pronto para store:', pedido)
+            store.atualizarPedido(pedido)
             
             notification.info(
-              `Novo pedido #${pedido.pedidoNumero}`, 
+              `Novo pedido #${pedido.pedidoNumero || pedido.id}`, 
               'Novo Pedido'
             )
-            // TODO: Tocar som de notificação
           },
-          // ✅ NOVO: Handler para pedidos liberados automaticamente
+          // Handler para pedidos liberados automaticamente
           onPedidoLiberado: async (evento) => {
             console.log('🎉 [VIEW] Pedido liberado automaticamente:', evento)
-            console.log('📊 [VIEW] Estado atual dos pedidos:', store.pedidos.length, 'pedidos')
             
-            // Adicionar o pedido diretamente da notificação (em vez de recarregar)
-            // porque pode haver delay entre a notificação e a disponibilidade na API
-            const novoPedido = {
-              id: evento.subPedidoId,
-              pedidoId: evento.pedidoId,
-              pedidoNumero: evento.pedidoNumero,
-              subPedidoNumero: evento.subPedidoNumero,
-              status: evento.status || 'PENDENTE',
-              itens: [],  // Será carregado quando expandir
-              recebidoEm: evento.timestamp,
-              totalItens: evento.totalItens || 0
+            try {
+              const subPedidoId = evento.subPedidoId || evento.id
+              if (!subPedidoId) {
+                console.warn('⚠️ [VIEW] evento sem ID, ignorando:', evento)
+                return
+              }
+
+              const fullPedido = await subPedidosAPI.buscar(subPedidoId)
+              store.atualizarPedido(fullPedido)
+              
+              notification.success(
+                `Pedido ${fullPedido.pedidoNumero || evento.pedidoNumero || subPedidoId} liberado e pronto para produção`, 
+                '🎉 Pedido Confirmado'
+              )
+            } catch (e) {
+              console.error('❌ [VIEW] Erro ao carregar pedido liberado:', e)
+              // Fallback: recarregar todos se falhar
+              store.carregarPedidosAtivos()
             }
-            
-            console.log('➕ [VIEW] Adicionando pedido liberado:', novoPedido)
-            store.adicionarPedido(novoPedido)
-            
-            notification.success(
-              `Pedido ${evento.pedidoNumero} liberado e pronto para produção`, 
-              '🎉 Pedido Confirmado'
-            )
-            // TODO: Tocar som de notificação diferente (confirmação)
           },
-          onAtualizacao: (notificacao) => {
+          onAtualizacao: async (notificacao) => {
             console.log('🔄 [VIEW] Notificação de atualização recebida:', notificacao)
             
-            // Transformar NotificacaoSubPedidoDTO em SubPedido
-            const pedidoAtualizado = {
-              id: notificacao.subPedidoId,
-              pedidoId: notificacao.pedidoId,
-              pedidoNumero: notificacao.pedidoNumero || `PED-${notificacao.pedidoId}`,
-              subPedidoNumero: notificacao.subPedidoNumero,
-              status: notificacao.status,
-              itens: notificacao.itens || [],
-              observacoes: notificacao.observacoes,
-              recebidoEm: notificacao.timestamp,
-              cozinhaId: notificacao.cozinhaId,
-              nomeCozinha: notificacao.nomeCozinha
+            const subPedidoId = notificacao.subPedidoId || notificacao.id
+            if (!subPedidoId) {
+              console.warn('⚠️ [VIEW] Notificação de atualização sem ID:', notificacao)
+              return
+            }
+
+            let pedidoAtualizado = null
+            try {
+              pedidoAtualizado = await subPedidosAPI.buscar(subPedidoId)
+            } catch (e) {
+              console.error('❌ [VIEW] Erro ao atualizar detalhes via API:', e)
+            }
+
+            if (!pedidoAtualizado) {
+              // Fallback: normalização manual
+              pedidoAtualizado = {
+                id: subPedidoId,
+                pedidoId: notificacao.pedidoId,
+                pedidoNumero: notificacao.pedidoNumero || `PED-${notificacao.pedidoId}`,
+                subPedidoNumero: notificacao.subPedidoNumero,
+                status: notificacao.status,
+                itens: (notificacao.itens || []).map(item => ({
+                  ...item,
+                  produtoNome: item.produtoNome || item.nomeProduto,
+                  observacao: item.observacao || item.observacoes
+                })),
+                observacoes: notificacao.observacoes,
+                recebidoEm: notificacao.timestamp,
+                cozinhaId: notificacao.cozinhaId,
+                nomeCozinha: notificacao.nomeCozinha
+              }
             }
             
-            console.log('📦 [VIEW] Pedido atualizado transformado:', pedidoAtualizado)
+            console.log('📦 [VIEW] Pedido atualizado pronto para store:', pedidoAtualizado)
             store.atualizarPedido(pedidoAtualizado)
             
             if (notificacao.tipoAcao === 'MUDANCA_STATUS') {
