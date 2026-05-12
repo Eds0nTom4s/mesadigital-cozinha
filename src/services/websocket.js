@@ -13,7 +13,7 @@ class WebSocketService {
   // Conectar ao WebSocket
   connect(cozinhaId, callbacks = {}) {
     // C1: URL correto do WebSocket é /api/ws (não apenas /ws)
-    const wsUrl = import.meta.env.VITE_WS_URL || 'http://localhost:8080/api/ws'
+    const wsUrl = import.meta.env.VITE_WS_URL || '/api/ws'
     const token = localStorage.getItem('token')
 
     if (!token) {

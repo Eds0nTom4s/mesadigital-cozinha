@@ -205,7 +205,7 @@ const handleLogin = async () => {
           errorMsg = data?.error || data?.message || `Erro ${status}: Tente novamente.`
       }
     } else if (err.request) {
-      errorMsg = 'Não foi possível conectar ao servidor. Verifique:\n• Se o backend está rodando (http://localhost:8080)\n• Sua conexão com a internet'
+      errorMsg = 'Não foi possível conectar ao servidor. Verifique:\n• Se o backend Docker está rodando em http://localhost:8081\n• Se o proxy Vite /api está ativo\n• Sua conexão com a internet'
       errorTitle = 'Sem Conexão'
     } else {
       errorMsg = err.message || 'Erro inesperado. Tente novamente.'

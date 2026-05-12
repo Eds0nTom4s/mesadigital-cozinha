@@ -13,7 +13,6 @@ export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null,
     token: localStorage.getItem('token') || null,
-    refreshToken: localStorage.getItem('refreshToken') || null,
     isAuthenticated: false,
     selectedCozinhaId: localStorage.getItem('selectedCozinhaId') || null // B4: seleção manual de cozinha
   }),
@@ -79,8 +78,6 @@ export const useAuthStore = defineStore('auth', {
         
         // A1: O backend retorna 'token' (não accessToken)
         this.token = responseData.token
-        this.refreshToken = responseData.refreshToken
-        
         // Criar objeto user a partir dos dados do backend
         this.user = {
           id: responseData.id,
@@ -95,7 +92,6 @@ export const useAuthStore = defineStore('auth', {
 
         if (import.meta.env.DEV) {
           console.log('✅ Token extraído:', this.token?.substring(0, 50) + '...')
-          console.log('✅ RefreshToken:', this.refreshToken?.substring(0, 50) + '...')
           console.log('✅ User criado:', this.user)
         }
 
@@ -116,7 +112,6 @@ export const useAuthStore = defineStore('auth', {
 
         // Salvar no localStorage
         localStorage.setItem('token', this.token)
-        localStorage.setItem('refreshToken', this.refreshToken)
         localStorage.setItem('user', JSON.stringify(this.user))
 
         // DEBUG: Verificar se foi salvo corretamente
@@ -131,54 +126,14 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    // Renovar token
-    async refresh() {
-      try {
-        if (!this.refreshToken) {
-          throw new Error('Refresh token não disponível')
-        }
-
-        const response = await authAPI.refresh(this.refreshToken)
-        
-        // O backend pode retornar em dois formatos
-        const responseData = response.data.data || response.data
-
-        this.token = responseData.accessToken || responseData.token
-        this.refreshToken = responseData.refreshToken
-        
-        // Atualizar objeto user
-        if (responseData.username || responseData.roles) {
-          this.user = {
-            username: responseData.username || this.user?.username,
-            roles: responseData.roles || this.user?.roles,
-            nome: responseData.nome || this.user?.nome,
-            unidadeAtendimentoId: responseData.unidadeAtendimentoId || this.user?.unidadeAtendimentoId
-          }
-        } else if (responseData.user) {
-          this.user = responseData.user
-        }
-
-        localStorage.setItem('token', this.token)
-        localStorage.setItem('refreshToken', this.refreshToken)
-        localStorage.setItem('user', JSON.stringify(this.user))
-
-        return response
-      } catch (error) {
-        this.logout()
-        throw error
-      }
-    },
-
     // Logout
     logout() {
       this.user = null
       this.token = null
-      this.refreshToken = null
       this.isAuthenticated = false
       this.selectedCozinhaId = null
 
       localStorage.removeItem('token')
-      localStorage.removeItem('refreshToken')
       localStorage.removeItem('user')
       localStorage.removeItem('selectedCozinhaId')
     },
@@ -192,12 +147,10 @@ export const useAuthStore = defineStore('auth', {
     // Restaurar sessão do localStorage
     restoreSession() {
       const token = localStorage.getItem('token')
-      const refreshToken = localStorage.getItem('refreshToken')
       const userStr = localStorage.getItem('user')
 
-      if (token && refreshToken && userStr) {
+      if (token && userStr && !isTokenExpired(token)) {
         this.token = token
-        this.refreshToken = refreshToken
         this.user = JSON.parse(userStr)
         this.isAuthenticated = true
         return true
